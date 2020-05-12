@@ -267,10 +267,15 @@ namespace SharepointTestUtility {
       Program program = new Program(options);
       try {
         program.exec();
+      } catch (WebException ex) {
+        using (var reader = new System.IO.StreamReader(ex.Response.GetResponseStream())) {
+            Console.WriteLine("Error: could not run {0}. Got a web exception with response {1}", program.actions, reader.ReadToEnd());
+        }
+        throw ex;
       } catch (Exception ex) {
         Console.WriteLine("Error: Could not run {0}. Exception: {1}", program.actions, ex);
         throw ex;
-      }
+      } 
     }
 
     void exec() {
