@@ -134,6 +134,66 @@ namespace SharepointTestUtility {
     }
   }
 
+  public static class FolderExtensions {
+
+    /// <summary>
+    /// Moves the files that are in one folder to another folder, overwriting if needed.
+    /// </summary>
+    /// <param name="folder">Folder object.</param>
+    /// <param name="folderUrl">Folder URL.</param>
+    public static int MoveFilesTo(this Folder folder, string folderUrl) {
+      int numMoved = 0;
+      var ctx = (ClientContext)folder.Context;
+      if (!ctx.Web.IsPropertyAvailable("ServerRelativeUrl")) {
+        ctx.Load(ctx.Web, w => w.ServerRelativeUrl);
+      }
+      ctx.Load(folder, f => f.Files, f => f.ServerRelativeUrl, f => f.Folders);
+      ctx.ExecuteQuery();
+
+      //Ensure target folder exists
+      ctx.Web.EnsureFolder(folderUrl.Replace(ctx.Web.ServerRelativeUrl, string.Empty));
+      foreach (var file in folder.Files) {
+        ++numMoved;
+        var targetFileUrl = file.ServerRelativeUrl.Replace(folder.ServerRelativeUrl, folderUrl);
+        file.MoveTo(targetFileUrl, MoveOperations.Overwrite);
+      }
+      ctx.ExecuteQuery();
+
+      foreach (var subFolder in folder.Folders) {
+        var targetFolderUrl = subFolder.ServerRelativeUrl.Replace(folder.ServerRelativeUrl, folderUrl);
+        subFolder.MoveFilesTo(targetFolderUrl);
+      }
+      return numMoved;
+    }
+  }
+
+  static class WebExtensions {
+    /// <summary>
+    /// Ensures whether the folder exists   
+    /// </summary>
+    /// <param name="web"></param>
+    /// <param name="folderUrl"></param>
+    /// <returns></returns>
+    public static Folder EnsureFolder(this Web web, string folderUrl) {
+      return EnsureFolderInternal(web.RootFolder, folderUrl);
+    }
+
+    private static Folder EnsureFolderInternal(Folder parentFolder, string folderUrl) {
+      var ctx = parentFolder.Context;
+      var folderNames = folderUrl.Split(new char[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
+      var folderName = folderNames[0];
+      var folder = parentFolder.Folders.Add(folderName);
+      ctx.Load(folder);
+      ctx.ExecuteQuery();
+
+      if (folderNames.Length > 1) {
+        var subFolderUrl = string.Join("/", folderNames, 1, folderNames.Length - 1);
+        return EnsureFolderInternal(folder, subFolderUrl);
+      }
+      return folder;
+    }
+  }
+
   class Program {
 
     Auth auth;
@@ -142,6 +202,14 @@ namespace SharepointTestUtility {
     string username;
     string password;
     List<Dictionary<string, object>> actions;
+
+    public static void RenameFile(ClientContext ctx, string fileUrl, string newName) {
+      var file = ctx.Web.GetFileByServerRelativeUrl(fileUrl);
+      ctx.Load(file.ListItemAllFields);
+      ctx.ExecuteQuery();
+      file.MoveTo(file.ListItemAllFields["FileDirRef"] + "/" + newName, MoveOperations.Overwrite);
+      ctx.ExecuteQuery();
+    }
 
     static SecureString GetSecureString(string input) {
       if (string.IsNullOrEmpty(input))
@@ -501,6 +569,24 @@ namespace SharepointTestUtility {
 
             res.Add("" + item.Id);
           }
+        } else if (actionType.Equals("moveFiles")) {
+          using (ClientContext clientContext = getClientContext(removeHttpsFromUrl((string)action["ParentSiteUrl"]))) {
+            // FromFolderUrl and ToFolderUrl are ServerRelativePaths such as /news/pages
+            var from = (string)action["FromFolderUrl"];
+            var to = (string)action["ToFolderUrl"];
+            if (!from.StartsWith("/")) {
+              from = "/" + from;
+            }
+            if (!to.StartsWith("/")) {
+              to = "/" + to;
+            }
+            var sourceFolder = clientContext.Web.GetFolderByServerRelativeUrl(from);
+            int numMoved = sourceFolder.MoveFilesTo(to);
+            clientContext.ExecuteQuery();
+
+            Console.WriteLine("Moved {0} files from {1} to {2}", numMoved, from, to);
+          }
+          res.Add(""); // nothing to return
         } else if (actionType.Equals("deleteListItem")) {
           using (ClientContext clientContext = getClientContext(removeHttpsFromUrl((string)action["ParentSiteUrl"]))) {
             List list = clientContext.Web.Lists.GetById(Guid.Parse((string)action["ListGuid"]));
@@ -961,14 +1047,6 @@ namespace SharepointTestUtility {
         } else {
           throw new Exception("Unsupported action " + action);
         }
-
-        // TODO cases that need added in order of priority
-
-        // move list item
-        // rename list item
-        // create a mysite site collection
-        // add field to list
-        // remove field from list
       }
       System.IO.File.WriteAllLines(outputPath, res);
     }
