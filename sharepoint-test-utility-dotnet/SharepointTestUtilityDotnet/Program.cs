@@ -571,7 +571,7 @@ namespace SharepointTestUtility {
           }
         } else if (actionType.Equals("moveFiles")) {
           using (ClientContext clientContext = getClientContext(removeHttpsFromUrl((string)action["ParentSiteUrl"]))) {
-            // FromFolderUrl and ToFolderUrl are ServerRelativePaths such as /news/pages
+            // FromFolderUrl and ToFolderUrl are ServerRelativePaths such as /sites/nick_test/Shared Documents/test1
             var from = (string)action["FromFolderUrl"];
             var to = (string)action["ToFolderUrl"];
             if (!from.StartsWith("/")) {
