@@ -203,14 +203,6 @@ namespace SharepointTestUtility {
     string password;
     List<Dictionary<string, object>> actions;
 
-    public static void RenameFile(ClientContext ctx, string fileUrl, string newName) {
-      var file = ctx.Web.GetFileByServerRelativeUrl(fileUrl);
-      ctx.Load(file.ListItemAllFields);
-      ctx.ExecuteQuery();
-      file.MoveTo(file.ListItemAllFields["FileDirRef"] + "/" + newName, MoveOperations.Overwrite);
-      ctx.ExecuteQuery();
-    }
-
     static SecureString GetSecureString(string input) {
       if (string.IsNullOrEmpty(input))
         throw new ArgumentException("Input string is empty and cannot be made into a SecureString", nameof(input));
@@ -568,6 +560,14 @@ namespace SharepointTestUtility {
             Console.WriteLine("Text file uploaded id={0}", item.Id);
 
             res.Add("" + item.Id);
+          }
+        } else if (actionType.Equals("renameFolder")) {
+          using (ClientContext clientContext = getClientContext(removeHttpsFromUrl((string)action["ParentSiteUrl"]))) {
+            var from = (string)action["FromFolderUrl"];
+            var to = (string)action["ToFolderUrl"];
+            var folder = clientContext.Web.GetFolderByServerRelativeUrl(from);
+            folder.MoveTo(to);
+            clientContext.ExecuteQuery();
           }
         } else if (actionType.Equals("moveFiles")) {
           using (ClientContext clientContext = getClientContext(removeHttpsFromUrl((string)action["ParentSiteUrl"]))) {
