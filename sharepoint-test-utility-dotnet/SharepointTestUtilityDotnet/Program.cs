@@ -299,6 +299,13 @@ namespace SharepointTestUtility {
       return url.Replace("https://", "http://");
     }
 
+    public static void RenameFile(ClientContext ctx, string fileUrl, string newName) {
+      var file = ctx.Web.GetFileByServerRelativeUrl(fileUrl);
+      ctx.Load(file.ListItemAllFields);
+      ctx.ExecuteQuery();
+      file.MoveTo(file.ListItemAllFields["FileDirRef"] + "/" + newName, MoveOperations.Overwrite);
+    }
+
     private Folder EnsureFolder(ClientContext ctx, Folder ParentFolder, string FolderPath) {
       //Split up the incoming path so we have the first element as the a new sub-folder name 
       //and add it to ParentFolder folders collection
@@ -569,7 +576,16 @@ namespace SharepointTestUtility {
             folder.MoveTo(to);
             clientContext.ExecuteQuery();
           }
-        } else if (actionType.Equals("moveFiles")) {
+        }
+        else if (actionType.Equals("renameFile")) {
+          using (ClientContext clientContext = getClientContext(removeHttpsFromUrl((string)action["ParentSiteUrl"]))) {
+            var fileUrl = (string)action["FileUrl"];
+            var newName = (string)action["NewName"];
+            RenameFile(clientContext, fileUrl, newName);
+            clientContext.ExecuteQuery();
+          }
+        }
+        else if (actionType.Equals("moveFiles")) {
           using (ClientContext clientContext = getClientContext(removeHttpsFromUrl((string)action["ParentSiteUrl"]))) {
             // FromFolderUrl and ToFolderUrl are ServerRelativePaths such as /sites/nick_test/Shared Documents/test1
             var from = (string)action["FromFolderUrl"];
