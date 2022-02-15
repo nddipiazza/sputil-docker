@@ -1,4 +1,4 @@
-FROM mono:6.8.0.96-slim
+FROM mono:6.12.0.122-slim
 
 COPY sharepoint-test-utility-dotnet /sharepoint-test-utility-dotnet
 
